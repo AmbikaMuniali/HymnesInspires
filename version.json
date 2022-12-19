@@ -1,1 +1,1 @@
-{ "version" : 1.11 }
+{ "version" : 1.11, "nbCantique" : [343, 360, 383, 412, 324],   "debutLivre" : [0, 343, 703, 1086, 1498],   "books" : ["CH", "NW", "NM", "CS", "CV"], } 
