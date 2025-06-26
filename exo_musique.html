@@ -114,30 +114,9 @@
    <input type="range" id="speedRange" min="200" max="2000" value="1000" step="100">
    <span id="speedValue">1.0</span> secondes
   </div>
-  <div class="note-range-control">
-   <label for="lowestNote">Note la plus basse:</label>
-   <select id="lowestNote"></select><br><br>
-   <label for="highestNote">Note la plus haute:</label>
-   <select id="highestNote"></select>
-  </div>
-  <div class="interval-control">
-   <label for="intervalType">Pas:</label>
-   <select id="intervalType">
-    <option value="1" selected>Secondes (Pas)</option>
-    <option value="2">Tierces (Sauts)</option>
-    <option value="3">Quartes (Sauts)</option>
-    <option value="4">Quintes (Sauts)</option>
-   </select>
-  </div>
-  <div class="random-direction-control">
-    <label for="randomDirectionToggle">Direction Aléatoire:</label>
-    <input type="checkbox" id="randomDirectionToggle"> Activer
-  </div>
-  <div class="fixed-note-control">
-   <label for="fixedNoteToggle">Note Fixe:</label>
-   <input type="checkbox" id="fixedNoteToggle"> Activer
-   <span id="fixedNoteIndicator"></span>   <select id="fixedNoteSelect" disabled></select>
-  </div>
+
+
+
   <div class="timbre-control">
    <label for="oscillatorType">Timbre:</label>
    <select id="oscillatorType">
@@ -145,6 +124,35 @@
     <option value="sine">Sine (Flûte)</option>
     <option value="square">Square (Clarinette/Bois)</option>
     <option value="sawtooth">Sawtooth (Cordes/Cuivres)</option>
+   </select>
+  </div>
+
+  <div class="fixed-note-control">
+   <label for="fixedNoteToggle">Note Fixe:</label>
+   <input type="checkbox" id="fixedNoteToggle" checked> Activer
+   <span id="fixedNoteIndicator"></span>   <select id="fixedNoteSelect" enabled></select>
+  </div>
+
+  <!-- reglages -->
+  <div class="note-range-control">
+   <label for="lowestNote">Note la plus basse:</label>
+   <select id="lowestNote"></select><br><br>
+   <label for="highestNote">Note la plus haute:</label>
+   <select id="highestNote"></select>
+  </div>
+  <div class="random-direction-control">
+    <label for="randomDirectionToggle">Direction Aléatoire:</label>
+    <input type="checkbox" id="randomDirectionToggle"> Activer
+  </div>
+
+
+  <div class="interval-control">
+   <label for="intervalType">Pas:</label>
+   <select id="intervalType">
+    <option value="1" selected>Secondes (Pas)</option>
+    <option value="2">Tierces (Sauts)</option>
+    <option value="3">Quartes (Sauts)</option>
+    <option value="4">Quintes (Sauts)</option>
    </select>
   </div>
  </div>
@@ -214,7 +222,7 @@
   let intervalStep = 1; // Default to seconds (step of 1 in the majorScale array)
 
   // Fixed Note variables
-  let useFixedNote = false;
+  let useFixedNote = true;
   let fixedNoteIndex = 7; // Default to C4 (index 7)
   let isPlayingFixedNoteInCycle = false; // Flag to alternate between fixed and moving note
 
@@ -299,7 +307,7 @@
 
      // Check if the potential next note goes beyond the allowed range
      if (effectiveDirection === 1) { // Moving upwards
-    if (potentialNextIndex > highestNoteAllowedIndex) {
+    if (potentialNextIndex >= highestNoteAllowedIndex) {
      movingNoteSequenceIndex = highestNoteAllowedIndex; // Set to highest note
      if (!useRandomDirection) direction = -1; // Only reverse direction if not in random mode
     } else {
