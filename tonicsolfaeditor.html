@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tonic Solfa Piano Studio</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        :root {
+            --white-key-w: 35px;
+            --white-key-h: 150px;
+            --black-key-w: 24px;
+            --black-key-h: 90px;
+        }
+
+        body { font-family: 'Segoe UI', sans-serif; background: #2c3e50; color: white; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .container { width: 100%; max-width: 1100px; background: #34495e; padding: 20px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        
+        /* --- Piano --- */
+        .piano-scroll { overflow-x: auto; width: 100%; background: #1a1a1a; padding: 20px 10px; border-radius: 5px; margin-bottom: 20px; }
+        .piano { display: flex; position: relative; width: fit-content; margin: 0 auto; padding-bottom: 10px; }
+        .key { cursor: pointer; display: flex; align-items: flex-end; justify-content: center; font-size: 0.7em; font-weight: bold; transition: all 0.1s; user-select: none; }
+        .white { width: var(--white-key-w); height: var(--white-key-h); background: linear-gradient(to bottom, #eee 0%, #fff 100%); color: #333; border: 1px solid #ccc; border-radius: 0 0 5px 5px; z-index: 1; }
+        .white:active, .white.playing { background: #bdc3c7; transform: translateY(2px); }
+        .black { width: var(--black-key-w); height: var(--black-key-h); background: linear-gradient(to bottom, #444 0%, #000 100%); color: white; margin-left: calc(var(--black-key-w) / -2); margin-right: calc(var(--black-key-w) / -2); border-radius: 0 0 3px 3px; z-index: 2; border: 1px solid #000; }
+        .black:active, .black.playing { background: #555; transform: translateY(2px); }
+
+        /* --- Controls --- */
+        .layout { display: grid; grid-template-columns: 1fr 300px; gap: 20px; }
+        .panel { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 8px; }
+        .duration-selector { display: flex; gap: 5px; margin-bottom: 15px; }
+        .btn { border: none; padding: 10px; border-radius: 4px; cursor: pointer; background: #7f8c8d; color: white; flex: 1; }
+        .btn.active { background: #e74c3c; font-weight: bold; }
+        
+        .play-controls { display: flex; flex-direction: column; gap: 10px; }
+        .btn-main { padding: 15px; font-weight: bold; font-size: 1.1em; }
+        .btn-play { background: #27ae60; }
+        .btn-stop { background: #c0392b; }
+
+        /* --- Editor --- */
+        #editor { width: 100%; height: 120px; background: #1a1a1a; color: #2ecc71; border: 1px solid #444; padding: 10px; font-family: 'Courier New', monospace; font-size: 16px; border-radius: 4px; resize: none; margin-top: 10px; }
+        .visualizer { margin-top: 10px; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 4px; min-height: 40px; font-family: monospace; display: flex; flex-wrap: wrap; gap: 5px; }
+        .note-tag { padding: 2px 5px; border-radius: 3px; background: #444; }
+        .note-tag.active { background: #f1c40f; color: black; }
+
+        .loading-overlay { position: fixed; top:0; left:0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay">
+    <h2>Chargement du Piano Réel...</h2>
+    <p>Veuillez patienter quelques secondes.</p>
+</div>
+
+<div class="container">
+    <h1>Tonic Solfa Studio Pro</h1>
+
+    <div class="piano-scroll">
+        <div id="piano" class="piano"></div>
+    </div>
+
+    <div class="layout">
+        <div class="main-col">
+            <div class="panel">
+                <label>1. Durée de la note à ajouter :</label>
+                <div class="duration-selector" id="durationBtns">
+                    <button class="btn" data-dur="1n">Ronde</button>
+                    <button class="btn" data-dur="2n">Blanche</button>
+                    <button class="btn active" data-dur="4n">Noire</button>
+                    <button class="btn" data-dur="8n">Croche</button>
+                    <button class="btn" data-dur="16n">Double</button>
+                    <button class="btn" data-dur="rest" style="background:#3498db">SILENCE</button>
+                </div>
+
+                <label>Éditeur de Séquence (Format note:durée) :</label>
+                <textarea id="editor" spellcheck="false"></textarea>
+                
+                <div id="visualizer" class="visualizer"></div>
+            </div>
+        </div>
+
+        <div class="side-col">
+            <div class="panel play-controls">
+                <button id="playBtn" class="btn btn-main btn-play">LANCER LA BOUCLE</button>
+                <button id="stopBtn" class="btn btn-main btn-stop">ARRÊTER</button>
+                
+                <hr style="width:100%; border:0; border-top:1px solid #555">
+                
+                <label>Vitesse (BPM) : <span id="bpmVal">120</span></label>
+                <input type="range" id="bpmRange" min="40" max="220" value="120" style="width:100%">
+                
+                <div style="margin-top:10px">
+                    <input type="checkbox" id="loopCheck" checked> <label for="loopCheck">Bouclage auto</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+/**
+ * CONFIGURATION DU PIANO RÉEL (SAMPLER)
+ */
+const pianoSampler = new Tone.Sampler({
+    urls: {
+        "A0": "A0.mp3", "C1": "C1.mp3", "D#1": "Ds1.mp3", "F#1": "Fs1.mp3", "A1": "A1.mp3",
+        "C2": "C2.mp3", "D#2": "Ds2.mp3", "F#2": "Fs2.mp3", "A2": "A2.mp3",
+        "C3": "C3.mp3", "D#3": "Ds3.mp3", "F#3": "Fs3.mp3", "A3": "A3.mp3",
+        "C4": "C4.mp3", "D#4": "Ds4.mp3", "F#4": "Fs4.mp3", "A4": "A4.mp3",
+        "C5": "C5.mp3", "D#5": "Ds5.mp3", "F#5": "Fs5.mp3", "A5": "A5.mp3",
+        "C6": "C6.mp3", "D#6": "Ds6.mp3", "F#6": "Fs6.mp3", "A6": "A6.mp3"
+    },
+    release: 1,
+    baseUrl: "https://tonejs.github.io/audio/salamander/",
+    onload: () => {
+        document.getElementById('loading').classList.add('hidden');
+    }
+}).toDestination();
+
+/**
+ * MAPPING TONIC SOLFA (3 Octaves)
+ */
+const SF_LABELS = ["d", "de", "r", "re", "m", "f", "fe", "s", "se", "l", "le", "t"];
+const MIDI_BASE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
+const pianoNotes = [];
+// Génération de 37 notes (C3 à C6)
+for (let i = 0; i < 37; i++) {
+    let octave = 3 + Math.floor(i / 12);
+    let idx = i % 12;
+    let label = SF_LABELS[idx];
+    
+    // Suffixes : d, (bas), d (moyen), d' (haut), d'' (très haut)
+    let suffix = "";
+    if (octave === 3) suffix = ",";
+    if (octave === 5) suffix = "'";
+    if (octave === 6) suffix = "''";
+
+    pianoNotes.push({
+        solfa: label + suffix,
+        pitch: MIDI_BASE[idx] + octave,
+        isBlack: MIDI_BASE[idx].includes("#")
+    });
+}
+
+/**
+ * UI : GÉNÉRATION DU CLAVIER
+ */
+const pianoEl = document.getElementById('piano');
+pianoNotes.forEach(n => {
+    const key = document.createElement('div');
+    key.className = `key ${n.isBlack ? 'black' : 'white'}`;
+    key.innerHTML = `<span>${n.solfa}</span>`;
+    key.dataset.pitch = n.pitch;
+    key.onmousedown = (e) => {
+        e.preventDefault();
+        playSingleNote(n);
+    };
+    pianoEl.appendChild(key);
+});
+
+/**
+ * LOGIQUE DE SÉQUENCE
+ */
+let sequence = []; // { solfa, pitch, duration }
+let currentDuration = "4n";
+
+// Sélection de durée
+document.getElementById('durationBtns').onclick = (e) => {
+    if (e.target.dataset.dur) {
+        document.querySelectorAll('#durationBtns .btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        currentDuration = e.target.dataset.dur;
+    }
+};
+
+function playSingleNote(noteObj) {
+    if (currentDuration !== "rest") {
+        pianoSampler.triggerAttackRelease(noteObj.pitch, currentDuration);
+        addToSequence(noteObj.solfa, noteObj.pitch, currentDuration);
+    } else {
+        addToSequence("-", null, "4n"); // Silence par défaut
+    }
+}
+
+function addToSequence(solfa, pitch, dur) {
+    sequence.push({ solfa, pitch, duration: dur });
+    updateUI();
+}
+
+/**
+ * CONVERTISSEUR JSON / DSL
+ * Format : "d:4 r:8 m:2 -:4"
+ */
+function updateUI() {
+    const editor = document.getElementById('editor');
+    editor.value = sequence.map(s => {
+        let d = s.duration.replace('n', '');
+        if(d === '1') d = '1'; 
+        return `${s.solfa}:${d}`;
+    }).join(' ');
+    
+    renderVisualizer();
+}
+
+// v-model : Modifier texte -> Update sequence
+document.getElementById('editor').oninput = (e) => {
+    const text = e.target.value;
+    const parts = text.trim().split(/\s+/);
+    const newSeq = [];
+    
+    parts.forEach(p => {
+        if(!p.includes(':')) return;
+        let [sf, durRaw] = p.split(':');
+        let dur = durRaw.endsWith('n') ? durRaw : durRaw + 'n';
+        if(dur === '1n') dur = '1n';
+
+        const found = pianoNotes.find(n => n.solfa === sf);
+        newSeq.push({
+            solfa: sf,
+            pitch: sf === '-' ? null : (found ? found.pitch : null),
+            duration: dur
+        });
+    });
+    sequence = newSeq;
+    renderVisualizer();
+};
+
+function renderVisualizer() {
+    const v = document.getElementById('visualizer');
+    v.innerHTML = sequence.map((s, i) => `<span class="note-tag" id="tag-${i}">${s.solfa}:${s.duration}</span>`).join('');
+}
+
+/**
+ * MOTEUR DE LECTURE MIDI-LIKE
+ */
+let isPlaying = false;
+
+function startPlayback() {
+    if (isPlaying) stopPlayback();
+    if (sequence.length === 0) return;
+
+    Tone.start();
+    Tone.Transport.bpm.value = document.getElementById('bpmRange').value;
+
+    let currentTime = 0;
+    const events = sequence.map((item, idx) => {
+        const time = currentTime;
+        currentTime += Tone.Time(item.duration).toSeconds();
+        return { time, ...item, index: idx };
+    });
+
+    const part = new Tone.Part((time, event) => {
+        if (event.pitch) {
+            pianoSampler.triggerAttackRelease(event.pitch, event.duration, time);
+            
+            // Animation touche clavier
+            Tone.Draw.schedule(() => {
+                const keyEl = document.querySelector(`[data-pitch="${event.pitch}"]`);
+                if(keyEl) {
+                    keyEl.classList.add('playing');
+                    setTimeout(() => keyEl.classList.remove('playing'), 200);
+                }
+            }, time);
+        }
+
+        // Animation Visualiseur
+        Tone.Draw.schedule(() => {
+            document.querySelectorAll('.note-tag').forEach(t => t.classList.remove('active'));
+            const tag = document.getElementById(`tag-${event.index}`);
+            if(tag) tag.classList.add('active');
+        }, time);
+
+    }, events).start(0);
+
+    Tone.Transport.loop = document.getElementById('loopCheck').checked;
+    Tone.Transport.loopEnd = currentTime;
+    Tone.Transport.start();
+    isPlaying = true;
+}
+
+function stopPlayback() {
+    Tone.Transport.stop();
+    Tone.Transport.cancel();
+    isPlaying = false;
+    document.querySelectorAll('.note-tag').forEach(t => t.classList.remove('active'));
+}
+
+// Events boutons
+document.getElementById('playBtn').onclick = startPlayback;
+document.getElementById('stopBtn').onclick = stopPlayback;
+document.getElementById('bpmRange').oninput = (e) => {
+    const val = e.target.value;
+    document.getElementById('bpmVal').innerText = val;
+    Tone.Transport.bpm.value = val;
+};
+
+</script>
+</body>
+</html>
